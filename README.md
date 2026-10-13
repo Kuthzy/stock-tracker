@@ -19,7 +19,7 @@ The bot can run on GitHub's free servers. It checks every 20 minutes in market h
 2. **Add your alert settings as secrets.** Go to **Settings → Secrets and variables → Actions → New repository secret** and add:
    - for phone push: `NTFY_TOPIC`, or `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`
    - optionally: `SEC_USER_AGENT` (your email) and `FINNHUB_API_KEY`
-3. **Switch it on.** On the **Actions** tab, enable workflows. Then open **Stock tracker** and press **Run workflow** for a first check.
+3. **Switch it on.** On the **Actions** tab, enable workflows. Then open **Stock tracker** and press **Run workflow** for a first check. To check that phone alerts arrive, press **Run workflow**, tick **Only send a test message to your phone**, and run it.
 
 **Run only one copy.** Before switching cloud mode on, close any window where `run.sh` or `run.bat` is running, remove the Mac background service if you installed it (`bash scripts/mac_uninstall_service.sh`), and stop Docker if you used it (`docker compose down`). Otherwise every alert arrives twice. To run on your computer again later, disable the workflow on the Actions tab.
 

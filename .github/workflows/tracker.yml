@@ -14,6 +14,11 @@ on:
     - cron: "17 3,6 * * 1-5"        # weeknights (Sun-Thu nights ET): news and filings
     - cron: "17 */3 * * 0,6"        # weekends: news and filings every 3 hours
   workflow_dispatch:                # "Run workflow" button for a check right now
+    inputs:
+      test_alert:
+        description: "Only send a test message to your phone (no check)"
+        type: boolean
+        default: false
 
 concurrency:
   group: stock-tracker              # never two checks at once
@@ -76,7 +81,7 @@ jobs:
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
-        run: .venv/bin/python -m tracker tick
+        run: .venv/bin/python -m tracker ${{ inputs.test_alert && 'test-alert' || 'tick' }}
 
       - name: Save the bot's memory
         if: always()
