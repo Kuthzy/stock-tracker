@@ -1,0 +1,28 @@
+# systemd unit for running without Docker on a Linux server (Ubuntu/Debian).
+# Needs Python 3.11+ (Ubuntu 24.04 / Debian 12 have it). One-time setup, as a user with sudo:
+#   sudo apt install -y python3-venv git
+#   sudo useradd -r -M -d /opt/stock-tracker -s /usr/sbin/nologin tracker
+#   sudo install -d -o tracker -g tracker /opt/stock-tracker
+#   sudo -u tracker git clone <your repo URL> /opt/stock-tracker      (or copy the folder there and
+#                                                                   sudo chown -R tracker:tracker it)
+#   sudo -u tracker python3 -m venv /opt/stock-tracker/.venv
+#   sudo -u tracker /opt/stock-tracker/.venv/bin/pip install -r /opt/stock-tracker/requirements.txt
+#   sudo -u tracker cp /opt/stock-tracker/.env.example /opt/stock-tracker/.env   (then: sudo -u tracker nano /opt/stock-tracker/.env)
+#   sudo cp /opt/stock-tracker/deploy/stock-tracker.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now stock-tracker
+#   journalctl -u stock-tracker -f        (watch the log)
+[Unit]
+Description=Stock Tracker Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/stock-tracker
+ExecStart=/opt/stock-tracker/.venv/bin/python -m tracker run
+Restart=always
+RestartSec=15
+User=tracker
+
+[Install]
+WantedBy=multi-user.target

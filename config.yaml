@@ -1,0 +1,142 @@
+# ---------------------------------------------------------------
+# Stock Tracker Bot configuration
+# Edit this file to change what the bot watches and how it scores.
+# Secrets (API keys, bot tokens) go in .env, never here.
+# ---------------------------------------------------------------
+
+# Tickers you always want watched (themes below add more).
+watchlist: [BWET, FRO, DHT, STNG, XOM, LMT, CCJ, NVDA]
+
+# Extra company names so headlines without a $TICKER still map correctly.
+# Any capitalization works ("NVIDIA", "Nvidia"), but the match has to start with a capital,
+# so "Chevron" maps to CVX and "chevron" doesn't.
+aliases:
+  BWET: ["Breakwave Tanker", "Breakwave"]
+  FRO: ["Frontline plc", "Frontline Ltd", "Frontline shares", "Frontline stock"]
+  DHT: ["DHT Holdings"]
+  STNG: ["Scorpio Tankers"]
+  INSW: ["International Seaways"]
+  TNK: ["Teekay Tankers"]
+  TRMD: ["TORM"]
+  XOM: ["Exxon", "ExxonMobil"]
+  CVX: ["Chevron"]
+  LMT: ["Lockheed"]
+  RTX: ["Raytheon", "RTX Corp"]
+  NOC: ["Northrop"]
+  CCJ: ["Cameco"]
+  NVDA: ["Nvidia"]
+  AMD: ["Advanced Micro Devices"]
+
+# Themes: a news keyword hit raises attention on every ticker in the theme.
+# shock_direction: how supply shocks / geopolitical news usually hit this group
+#   (bullish = disruptions tend to push these UP, e.g. tanker rates spike).
+themes:
+  tanker_shipping:
+    keywords: [tanker, tankers, freight rates, tanker rates, charter rates, VLCC, Suezmax, Aframax,
+               Red Sea, Hormuz, Houthi, shipping lane, Suez, crude exports, shadow fleet, OPEC]
+    tickers: [BWET, FRO, DHT, STNG, INSW, TNK, TRMD]
+    context_symbols: ["BZ=F", "CL=F"]   # Brent and WTI crude futures
+    shock_direction: bullish
+  energy:
+    keywords: [crude oil, oil prices, OPEC, Brent, WTI, refinery, natural gas, LNG]
+    tickers: [XOM, CVX, OXY, USO]
+    context_symbols: ["CL=F", "NG=F"]
+    shock_direction: bullish
+  defense:
+    keywords: [defense contract, Pentagon, missile, NATO spending, military aid, drone strike]
+    tickers: [LMT, RTX, NOC, GD, ITA]
+    shock_direction: bullish
+  uranium:
+    keywords: [uranium, nuclear power, reactor, SMR, enrichment]
+    tickers: [CCJ, URA, UEC, NXE]
+    shock_direction: bullish
+  semiconductors:
+    keywords: [chip export, semiconductor, AI chips, TSMC, foundry, chip ban]
+    tickers: [NVDA, AMD, SMH, AVGO]
+    shock_direction: bearish
+  biotech_fda:
+    keywords: [FDA approval, PDUFA, phase 3, clinical trial, complete response letter]
+    tickers: [XBI]
+    shock_direction: neutral
+
+# Daily market-wide scan (top gainers / most active) merged into the watchlist.
+market_scan:
+  enabled: true
+  screens: [day_gainers, most_actives]
+  max_tickers: 20
+  run_at_et: "09:45"
+
+# Folder for your own add-on features (see docs/ADDING_FEATURES.md).
+plugins_dir: plugins
+
+# Data sources. Free sources work with no API key.
+sources:
+  prices: yfinance            # free, ~15 min delayed
+  # News sources that are switched on. Plug-ins can add more names here
+  # (e.g. "reddit" from plugins/example_reddit_news.py).
+  news: [rss, finnhub, sec_edgar]   # finnhub only runs if FINNHUB_API_KEY is set
+  rss:
+    per_ticker_yahoo: true     # Yahoo Finance headline feed per ticker
+    google_news_per_theme: true
+    feeds:
+      - https://www.prnewswire.com/rss/news-releases-list.rss
+      - https://www.globenewswire.com/RssFeed/orgclass/1/feedTitle/GlobeNewswire%20-%20News%20about%20Public%20Companies
+      - https://feeds.content.dowjones.io/public/rss/mw_topstories
+      - https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114
+
+# Optional AI headline classification with Claude (needs ANTHROPIC_API_KEY).
+# Headlines are batched into one request per cycle.
+llm:
+  enabled: auto                # auto = on when ANTHROPIC_API_KEY is set
+  model: claude-opus-5-5
+  max_headlines_per_call: 25
+
+# Polling intervals in seconds, by market session (US/Eastern).
+schedule:
+  regular_interval: 120        # 9:30-16:00 ET
+  extended_interval: 300       # pre-market 4:00-9:30, after-hours 16:00-20:00
+  closed_interval: 900         # nights, weekends, holidays (news + filings only)
+  closed_price_interval: 3600
+  premarket_brief_et: "08:30"
+  close_summary_et: "16:10"
+  holidays: [2026-01-01, 2026-01-19, 2026-02-16, 2026-04-03, 2026-05-25, 2026-06-19,
+             2026-07-03, 2026-09-07, 2026-11-26, 2026-12-25,
+             2027-01-01, 2027-01-18, 2027-02-15, 2027-03-26, 2027-05-31, 2027-06-18,
+             2027-07-05, 2027-09-06, 2027-11-25, 2027-12-24]
+
+# Move Score. `signals` lists which score parts are on and the most points each can give.
+# Add a plug-in signal by adding its name here; delete a line (or set 0) to switch one off.
+# The total is rescaled to 0-100, so keep the numbers adding up to about 100: adding points
+# for a new signal without lowering others makes every other ticker score a bit lower.
+scoring:
+  signals:
+    news: 30
+    price: 25
+    volume: 25
+    volatility: 10
+    theme: 10
+    # catalyst_bonus: 5        # example plug-in: points for FDA / M&A / contract news (lower news to 25)
+  news_lookback_hours: 24
+  news_half_life_hours: 6
+  theme_only_weight: 0.6       # news that only matches a theme counts this much
+  big_move_pct: 8              # % move that earns full price points
+  big_gap_pct: 5
+  big_rvol: 5                  # relative volume that earns full volume points
+
+alerts:
+  watch: 60
+  hot: 75
+  urgent: 90
+  cooldown_minutes: 45
+  max_per_ticker_per_day: 4
+  max_per_day: 60
+  quiet_hours_et: ["22:00", "07:00"]   # only Urgent alerts go out in this window
+  channels: [console, telegram, discord, email, ntfy]   # unconfigured channels are skipped
+
+storage:
+  db_path: data/tracker.db
+  log_dir: data/logs
+
+health:
+  port: 8080
+  stale_after_minutes: 60      # warn if no data arrives for this long

@@ -1,0 +1,99 @@
+# Runs the tracker on GitHub's free servers, so it works while your computer is off.
+# GitHub starts scheduled runs on a best-effort basis; they can be a few minutes late.
+# Times are UTC and cover US market hours in both summer (EDT) and winter (EST).
+# About 830 runs a month. A private repo gets 2,000 free minutes, and each run bills
+# 1-2 minutes, so this fits. Add runs only if you keep an eye on Settings > Billing.
+name: Stock tracker
+
+on:
+  schedule:
+    - cron: "*/20 13-20 * * 1-5"   # market hours: every 20 minutes
+    - cron: "0 8-12 * * 1-5"        # pre-market: hourly
+    - cron: "0 21-23 * * 1-5"       # after hours: hourly
+    - cron: "0 0 * * 2-6"           # after hours, last check (8 pm EDT / 7 pm EST)
+    - cron: "17 3,6 * * 1-5"        # weeknights (Sun-Thu nights ET): news and filings
+    - cron: "17 */3 * * 0,6"        # weekends: news and filings every 3 hours
+  workflow_dispatch:                # "Run workflow" button for a check right now
+
+concurrency:
+  group: stock-tracker              # never two checks at once
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        id: py
+        with:
+          python-version: "3.12"
+
+      # Reuse the installed packages between runs; keeps each run short (and within free minutes).
+      # The week number in the key reinstalls once a week, so data-library fixes (Yahoo changes
+      # often break yfinance until a new release) arrive on their own.
+      - name: Pick this week's package cache
+        id: week
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore installed packages
+        id: venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.py.outputs.python-version }}-${{ hashFiles('requirements.txt') }}-${{ steps.week.outputs.week }}
+
+      - name: Install
+        if: steps.venv.outputs.cache-hit != 'true'
+        run: python -m venv .venv && .venv/bin/pip install -r requirements.txt
+
+      # The key below never exists yet, so the newest saved memory is always restored
+      # (also when re-running an old run).
+      - name: Restore the bot's memory (scores, alerts sent, cooldowns)
+        uses: actions/cache/restore@v4
+        with:
+          path: data/tracker.db
+          key: tracker-db-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: tracker-db-
+
+      - name: Run one check
+        env:
+          TZ: America/New_York
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+        run: .venv/bin/python -m tracker tick
+
+      - name: Save the bot's memory
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data/tracker.db
+          key: tracker-db-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Keep the Excel report
+        if: always()
+        run: .venv/bin/python -m tracker export --out data/tracker_report.xlsx || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tracker-report
+          path: data/tracker_report.xlsx
+          retention-days: 7
+          overwrite: true
+          if-no-files-found: ignore
